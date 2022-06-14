@@ -3,7 +3,7 @@ use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::{Condvar, Mutex};
 
-struct RawSemaphore {
+pub struct RawSemaphore {
     capacity: usize,
     counter: AtomicUsize,
     lock: Mutex<()>,
