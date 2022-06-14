@@ -51,6 +51,8 @@ impl RawSemaphore {
         }
     }
 
+    ///Attempt to acquire a slot in the semaphore.
+    ///Blocks until we are ready to receive
     pub fn acquire(&self) -> bool {
         //Attempt to acquire a spot in the semaphore
         //We use relaxed since all other variables in memory kind of don't matter to us until we have acquired?
@@ -92,7 +94,6 @@ impl RawSemaphore {
                 } else {
                     //There are no slots currently available, wait for processes to leave
                     self.cond.wait(&mut guard);
-
                     currently_available = self.counter.load(Ordering::SeqCst);
                 }
             }
@@ -106,7 +107,7 @@ impl RawSemaphore {
         //If we are the firsts to exit after the semaphore was full, then we need
         //To wake up all sleeping processes so they can try to acquire it
         if previously_available == 0 {
-            let guard = self.lock.lock();
+            let _guard = self.lock.lock();
 
             self.cond.notify_all();
         }
@@ -119,14 +120,86 @@ struct Semaphore<T> {
     phantom: PhantomData<T>
 }
 
-pub enum TryAcquireError {
-
-
-
-}
-
 #[cfg(test)]
 mod tests {
+    use std::sync::Barrier;
+    use std::time::Duration;
     use super::*;
+
+    #[test]
+    pub fn test_single_thread_try_acquire() {
+        let capacity = 5;
+
+        let sem = Arc::new(RawSemaphore::new(capacity));
+
+        for _ in 0..capacity {
+            assert!(sem.try_acquire())
+        }
+
+        assert!(!sem.try_acquire());
+
+        sem.release();
+
+        assert!(sem.try_acquire());
+
+        for _ in 0..capacity {
+            sem.release()
+        }
+
+        for _ in 0..capacity {
+            assert!(sem.try_acquire())
+        }
+    }
+
+    #[test]
+    pub fn test_two_thread_try_acquire() {
+
+        let capacity = 5;
+
+        let sem = Arc::new(RawSemaphore::new(capacity));
+
+        for _ in 0..capacity {
+            assert!(sem.try_acquire())
+        }
+
+        assert!(!sem.try_acquire());
+
+        let sem2 = sem.clone();
+
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier_2 = Arc::clone(&barrier);
+
+        let handle = std::thread::spawn(move || {
+
+            assert!(!sem2.try_acquire());
+            barrier.wait();
+
+            println!("acquiring");
+            println!("{}", sem2.acquire());
+            println!("acquired");
+
+            barrier.wait();
+
+            std::thread::sleep(Duration::from_millis(1000));
+
+            println!("releasing");
+            sem2.release();
+        });
+
+        barrier_2.wait();
+
+        println!("releasing");
+
+        sem.release();
+
+        //Wait for the other thread to acquire it
+        barrier_2.wait();
+
+        sem.acquire();
+
+        println!("reacquired");
+
+        handle.join().unwrap();
+    }
 
 }
