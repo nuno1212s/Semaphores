@@ -33,8 +33,8 @@ impl RawSemaphore {
                 match self.counter.compare_exchange_weak(
                     currently_available,
                     currently_available - 1,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
                 ) {
                     Ok(_) => {
                         //Successfully acquired a slot in the semaphore
@@ -59,7 +59,7 @@ impl RawSemaphore {
         //We use relaxed since all other variables in memory kind of don't matter to us until we have acquired?
         let mut currently_available = self.counter.load(Ordering::Relaxed);
 
-        //If people miss use this semaphore, panic
+        //If people miss-use this semaphore, panic
         assert!(currently_available <= self.capacity);
 
         loop {
@@ -67,8 +67,8 @@ impl RawSemaphore {
                 match self.counter.compare_exchange_weak(
                     currently_available,
                     currently_available - 1,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
                 ) {
                     Ok(_) => {
                         return true;
@@ -90,8 +90,8 @@ impl RawSemaphore {
                     match self.counter.compare_exchange_weak(
                         currently_available,
                         currently_available - 1,
-                        Ordering::SeqCst,
-                        Ordering::SeqCst,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
                     ) {
                         Ok(_) => {
                             return true;
@@ -103,7 +103,7 @@ impl RawSemaphore {
                 } else {
                     //There are no slots currently available, wait for processes to leave
                     self.cond.wait(&mut guard);
-                    currently_available = self.counter.load(Ordering::SeqCst);
+                    currently_available = self.counter.load(Ordering::Relaxed);
                 }
             }
         }
@@ -111,7 +111,7 @@ impl RawSemaphore {
 
     ///Release a spot in the semaphore
     pub fn release(&self) {
-        let previously_available = self.counter.fetch_add(1, Ordering::SeqCst);
+        let previously_available = self.counter.fetch_add(1, Ordering::Relaxed);
 
         //If we are the firsts to exit after the semaphore was full, then we need
         //To wake up all sleeping processes so they can try to acquire it
